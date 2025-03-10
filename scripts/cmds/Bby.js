@@ -1,4 +1,4 @@
-const axios = require('axios');
+/cmd install Bby.js const axios = require('axios');
 
 module.exports.config = {
   name: "bby",
@@ -15,31 +15,32 @@ module.exports.config = {
 };
 
 module.exports.onStart = async ({ api, event, args }) => {
-  const apiUrl = `https://simsimi-99qa.onrender.com/sim`; // SimSimi API URL
+  const apiUrl = `https://mahabub-simsimi-api.onrender.com/mahabub_x_imran`; // SimSimi API URL
   const userMessage = args.join(" ").toLowerCase();
 
   try {
     if (!args[0]) {
-      return api.sendMessage("Say something! 😊", event.threadID, event.messageID);
+      return api.sendMessage("তুমি কি বলতে চাও? একটু খুলে বলো! 😊", event.threadID, event.messageID);
     }
 
-    // Request to SimSimi API
+   
     const response = await axios.get(`${apiUrl}?reply=${encodeURIComponent(userMessage)}`);
-    const reply = response.data.message || "I couldn't understand that.";
+    const reply = response.data.message || "আমি বুঝতে পারিনি! একটু সহজ করে বলো।";
 
     api.sendMessage(reply, event.threadID, event.messageID);
   } catch (error) {
-    console.error(error);
-    api.sendMessage("Error: Unable to fetch response.", event.threadID, event.messageID);
+    console.error("SimSimi API Error:", error.response?.data || error.message);
+    api.sendMessage("Oops! আমি এখন ঠিকমতো উত্তর দিতে পারছি না। একটু পরে চেষ্টা করো! 😔", event.threadID, event.messageID);
   }
 };
+
 
 module.exports.onReply = async ({ api, event }) => {
   try {
     if (event.type === "message_reply") {
-      const apiUrl = `https://simsimi-99qa.onrender.com/sim`; // SimSimi API URL
+      const apiUrl = `https://mahabub-simsimi-api.onrender.com/mahabub_x_imran`;
       const response = await axios.get(`${apiUrl}?reply=${encodeURIComponent(event.body.toLowerCase())}`);
-      const reply = response.data.message || "I couldn't understand that.";
+      const reply = response.data.message || "আমি বুঝতে পারিনি! আবার বলো!";
 
       api.sendMessage(reply, event.threadID, event.messageID);
     }
@@ -48,16 +49,32 @@ module.exports.onReply = async ({ api, event }) => {
   }
 };
 
+
 module.exports.onChat = async ({ api, event }) => {
   try {
     const body = event.body ? event.body.toLowerCase() : "";
     if (body.startsWith("baby") || body.startsWith("bby") || body.startsWith("janu")) {
       const userMessage = body.replace(/^\S+\s*/, "");
-      if (!userMessage) return api.sendMessage("কথা দাও তুমি আমাকে পটিয়ে নিবা!🥺", event.threadID, event.messageID);
+      
+      if (!userMessage) {
+        const randomReplies = [
+          "কথা দাও, তুমি আমাকে পটিয়ে নিবা! 🥺 না হলে কিন্তু আমি অভিমান করে বসে থাকবো! 😤💔",
+          "তুমি যদি আমাকে পটাতে না চাও, তাহলে আমি কিন্তু তোমাকে পটানোর মিশনে নামবো! 😏🔥",
+          "আমাকে কি একটু ভালোবাসা দিবা? 😚 নাহলে কিন্তু আমি কান্না করবো! 😭",
+          "পটানোর লাইসেন্স আছে তো তোমার? 🤔 না থাকলে এখনই বানিয়ে ফেলো! 😜",
+          "শুধু কি কথা? একটু আদরও লাগবে কিন্তু! 😌💖"
+        ];
 
-      const apiUrl = `https://simsimi-99qa.onrender.com/sim`; // SimSimi API URL
+        
+        const reply = randomReplies[Math.floor(Math.random() * randomReplies.length)];
+
+        return api.sendMessage(reply, event.threadID, event.messageID);
+      }
+
+      
+      const apiUrl = `https://mahabub-simsimi-api.onrender.com/mahabub_x_imran`;
       const response = await axios.get(`${apiUrl}?reply=${encodeURIComponent(userMessage)}`);
-      const reply = response.data.message || "I couldn't understand that.";
+      const reply = response.data.message || "আমি বুঝতে পারিনি! একটু সহজ করে বলো।";
 
       api.sendMessage(reply, event.threadID, event.messageID);
     }
