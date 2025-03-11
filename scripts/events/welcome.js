@@ -28,87 +28,114 @@ module.exports = {
 
 	onStart: async ({ threadsData, message, event, api, getLang }) => {
 		if (event.logMessageType == "log:subscribe") {
-			return async function () {
-				const hours = getTime("HH");
-				const { threadID } = event;
-				const { nickNameBot } = global.GoatBot.config;
-				const prefix = global.utils.getPrefix(threadID);
-				const dataAddedParticipants = event.logMessageData.addedParticipants;
+			const hours = getTime("HH");
+			const { threadID } = event;
+			const { nickNameBot } = global.GoatBot.config;
+			const prefix = global.utils.getPrefix(threadID);
+			const dataAddedParticipants = event.logMessageData.addedParticipants;
 
-				// If bot is added
-				if (dataAddedParticipants.some((item) => item.userFbId == api.getCurrentUserID())) {
-					if (nickNameBot) api.changeNickname(nickNameBot, threadID, api.getCurrentUserID());
-					return message.send(getLang("welcomeMessage", prefix));
-				}
+			// If bot is added
+			if (dataAddedParticipants.some((item) => item.userFbId == api.getCurrentUserID())) {
+				if (nickNameBot) api.changeNickname(nickNameBot, threadID, api.getCurrentUserID());
 
-				if (!global.temp.welcomeEvent[threadID]) {
-					global.temp.welcomeEvent[threadID] = {
-						joinTimeout: null,
-						dataAddedParticipants: []
-					};
-				}
-
-				global.temp.welcomeEvent[threadID].dataAddedParticipants.push(...dataAddedParticipants);
-				clearTimeout(global.temp.welcomeEvent[threadID].joinTimeout);
-
-				global.temp.welcomeEvent[threadID].joinTimeout = setTimeout(async function () {
-					const threadData = await threadsData.get(threadID);
-					if (threadData.settings.sendWelcomeMessage == false) return;
-
-					const dataAddedParticipants = global.temp.welcomeEvent[threadID].dataAddedParticipants;
-					const threadName = threadData.threadName;
-					const userName = [], mentions = [];
-					let multiple = dataAddedParticipants.length > 1 ? true : false;
-
-					for (const user of dataAddedParticipants) {
-						userName.push(user.fullName);
-						mentions.push({ tag: user.fullName, id: user.userFbId });
+				// Fetch and attach video to welcomeMessage
+				try {
+					const response = await axios.get("https://raw.githubusercontent.com/MR-MAHABUB-004/MAHABUB-BOT-STORAGE/refs/heads/main/events/welcome.json");
+					if (!response.data || !response.data.videos || response.data.videos.length === 0) {
+						throw new Error("No videos found in JSON file.");
 					}
 
-					if (userName.length == 0) return;
-					let { welcomeMessage = getLang("defaultWelcomeMessage") } = threadData.data;
-					welcomeMessage = welcomeMessage
-						.replace(/\{userName\}/g, userName.join(", "))
-						.replace(/\{boxName\}/g, threadName)
-						.replace(/\{multiple\}/g, multiple ? getLang("multiple2") : getLang("multiple1"))
-						.replace(/\{session\}/g, hours <= 10 ? getLang("session1") : hours <= 12 ? getLang("session2") : hours <= 18 ? getLang("session3") : getLang("session4"));
+					const videoList = response.data.videos;
+					const randomVideoURL = videoList[Math.floor(Math.random() * videoList.length)].url;
+					const videoPath = path.join(__dirname, `temp_welcome_${Date.now()}.mp4`);
 
-					const form = { body: welcomeMessage, mentions };
+					// Download video
+					const videoResponse = await axios({
+						url: randomVideoURL,
+						method: "GET",
+						responseType: "stream"
+					});
 
-					// **Fetch Random Video from JSON Server**
-					try {
-						const response = await axios.get("https://raw.githubusercontent.com/MR-MAHABUB-004/MAHABUB-BOT-STORAGE/refs/heads/main/events/welcome.json");
-						const videoList = response.data.videos; // JSON file এর "videos" array থেকে data নিচ্ছি
-						const randomVideoURL = videoList[Math.floor(Math.random() * videoList.length)].url;
+					const writer = fs.createWriteStream(videoPath);
+					videoResponse.data.pipe(writer);
 
-						// Download the video and store it temporarily
-						const videoPath = path.join(__dirname, "temp_video.mp4");
-						const videoResponse = await axios({
-							url: randomVideoURL,
-							method: "GET",
-							responseType: "stream"
+					writer.on("finish", () => {
+						const form = {
+							body: getLang("welcomeMessage", prefix),
+							attachment: fs.createReadStream(videoPath),
+						};
+						message.send(form, () => {
+							fs.unlinkSync(videoPath); // Delete file after sending
 						});
+					});
 
-						// Save video to local storage
-						const writer = fs.createWriteStream(videoPath);
-						videoResponse.data.pipe(writer);
+					writer.on("error", (err) => {
+						console.error("Error saving welcome video:", err);
+						message.send(getLang("welcomeMessage", prefix)); // Send text if video fails
+					});
+				} catch (error) {
+					console.error("Error fetching welcome video:", error.message);
+					message.send(getLang("welcomeMessage", prefix)); // Send text if fetch fails
+				}
 
-						writer.on("finish", () => {
-							form.attachment = fs.createReadStream(videoPath);
-							message.send(form);
-						});
+				return;
+			}
 
-						writer.on("error", (err) => {
-							console.error("Error saving video:", err);
-						});
-					} catch (error) {
-						console.error("Error fetching video:", error.message);
-						message.send(form);
-					}
+			if (!global.temp.welcomeEvent[threadID]) {
+				global.temp.welcomeEvent[threadID] = {
+					joinTimeout: null,
+					dataAddedParticipants: []
+				};
+			}
 
-					delete global.temp.welcomeEvent[threadID];
-				}, 1500);
-			};
+			global.temp.welcomeEvent[threadID].dataAddedParticipants.push(...dataAddedParticipants);
+			clearTimeout(global.temp.welcomeEvent[threadID].joinTimeout);
+
+			global.temp.welcomeEvent[threadID].joinTimeout = setTimeout(async function () {
+				const threadData = await threadsData.get(threadID);
+				if (threadData.settings.sendWelcomeMessage == false) return;
+
+				const dataAddedParticipants = global.temp.welcomeEvent[threadID].dataAddedParticipants;
+				const threadName = threadData.threadName;
+				const userName = [], mentions = [];
+				let multiple = dataAddedParticipants.length > 1 ? true : false;
+
+				for (const user of dataAddedParticipants) {
+					userName.push(user.fullName);
+					mentions.push({ tag: user.fullName, id: user.userFbId });
+				}
+
+				if (userName.length == 0) return;
+				let { welcomeMessage = getLang("defaultWelcomeMessage") } = threadData.data;
+				welcomeMessage = welcomeMessage
+					.replace(/\{userName\}/g, userName.join(", "))
+					.replace(/\{boxName\}/g, threadName)
+					.replace(/\{multiple\}/g, multiple ? getLang("multiple2") : getLang("multiple1"))
+					.replace(/\{session\}/g, hours <= 10 ? getLang("session1") : hours <= 12 ? getLang("session2") : hours <= 18 ? getLang("session3") : getLang("session4"));
+
+				const form = { body: welcomeMessage, mentions };
+
+				// Fetch and attach a random video
+				try {
+					const response = await axios.get("https://raw.githubusercontent.com/MR-MAHABUB-004/MAHABUB-BOT-STORAGE/refs/heads/main/events/welcome.json");
+					const videoList = response.data.videos;
+					const randomVideoURL = videoList[Math.floor(Math.random() * videoList.length)].url;
+					const videoPath = path.join(__dirname, `temp_video_${Date.now()}.mp4`);
+
+					const videoResponse = await axios({ url: randomVideoURL, method: "GET", responseType: "stream" });
+					const writer = fs.createWriteStream(videoPath);
+					videoResponse.data.pipe(writer);
+
+					writer.on("finish", () => {
+						form.attachment = fs.createReadStream(videoPath);
+						message.send(form, () => fs.unlinkSync(videoPath));
+					});
+				} catch {
+					message.send(form);
+				}
+
+				delete global.temp.welcomeEvent[threadID];
+			}, 1500);
 		}
 	}
 };
